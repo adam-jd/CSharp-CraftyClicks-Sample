@@ -4,6 +4,7 @@ using System.Windows.Forms;
 using System.Net;
 using System.IO;
 using System.Xml;
+using Newtonsoft.Json;
 
 namespace PostCodeLookup
 {
@@ -37,46 +38,39 @@ namespace PostCodeLookup
             this.ClearBasicControls();
 
             //Retrieve and set a post code value to a variable.
-            string postCodeHolder;
-            
-            postCodeHolder = this.txtBasicPostCode.Text;
+            var postCodeHolder = this.txtBasicPostCode.Text;
 
             string url =
-                String.Format("http://pcls1.craftyclicks.co.uk/xml/basicaddress?postcode={0}&response=data_formatted",
+                String.Format("http://pcls1.craftyclicks.co.uk/json/basicaddress?postcode={0}&response=data_formatted",
                     postCodeHolder);
-           
+
             //Complete XML HTTP Request
             WebRequest request = WebRequest.Create(url);
             //Complete XML HTTP Response
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            WebResponse response = request.GetResponse();
 
             //Declare and set a stream reader to read the returned XML
             StreamReader reader = new StreamReader(response.GetResponseStream());
 
-            //Declare and set XML document, loading in the XML from the stream reader.
-            XmlDocument xmlDoc = new XmlDocument();
-           
-            xmlDoc.LoadXml(reader.ReadToEnd());
+            // Get the requests json object and convert it to in memory dynamic
+            // Note: that you are able to convert to a specific object if required.
+            var jsonResponseObject = JsonConvert.DeserializeObject<dynamic>(reader.ReadToEnd());
 
-            //Attempt to set the node list to the address details node (thoroughfare).
-            XmlNodeList xmlNodeList = xmlDoc.SelectNodes("/CraftyResponse/address_data_formatted/thoroughfare");
-          
-
-            if (xmlNodeList.Count > 0)
+            // check that there are thoroughfare
+            if (jsonResponseObject.thoroughfare_count > 0)
             {
                 //If the node list contains address nodes then move on.
                 int i = 0;
-                foreach (System.Xml.XmlNode node in xmlNodeList)
+                foreach (var node in jsonResponseObject.thoroughfares)
                 {
                     ClsAddress address = new ClsAddress()
                     {
                         AddressID = i,
-                        AddressLine1 = node.ChildNodes[0].InnerText,
-                        AddressLine2 = node.ChildNodes[1].InnerText,
-                        County =
-                            xmlDoc.SelectSingleNode("CraftyResponse/address_data_formatted/postal_county").InnerText,
-                        PostCode = xmlDoc.SelectSingleNode("CraftyResponse/address_data_formatted/postcode").InnerText,
-                        Town = xmlDoc.SelectSingleNode("/CraftyResponse/address_data_formatted/town").InnerText
+                        AddressLine1 = node.line_1,
+                        AddressLine2 = node.line_2,
+                        County = jsonResponseObject.postal_county,
+                        PostCode = jsonResponseObject.postcode,
+                        Town = jsonResponseObject.town
                     };
 
                     addressList.Add(address);
@@ -90,13 +84,11 @@ namespace PostCodeLookup
             {
                 //If no node details, there will be an error message. 
 
-                xmlNodeList = xmlDoc.SelectNodes("/CraftyResponse"); //Populate the nodelist with the error info
-
-                foreach (System.Xml.XmlNode node in xmlNodeList)
+                foreach (var node in jsonResponseObject)
                 {
                     // Get the details of the error message and return it the user.
 
-                    switch (node.ChildNodes[0].InnerText)
+                    switch ((string)node.Value)
                     {
                         case "0001":
                             MessageBox.Show("Post Code not found");
@@ -123,7 +115,7 @@ namespace PostCodeLookup
                             MessageBox.Show("Internal server error");
                             break;
                         default:
-                            MessageBox.Show("Unknown Error");
+                            MessageBox.Show((string)node.Value);
                             break;
                     }
                 }
@@ -141,12 +133,13 @@ namespace PostCodeLookup
 
             //Retrieve and set a post code value to a variable.
             string postCodeHolder;
-            postCodeHolder = this.txtBasicPostCode.Text;
+            postCodeHolder = this.txtRapidPostCode.Text;
 
 
             string url =
-              String.Format("http://pcls1.craftyclicks.co.uk/xml/rapidaddress?postcode={0}&response=data_formatted&lines=2",
+              String.Format("http://pcls1.craftyclicks.co.uk/json/rapidaddress?postcode={0}&response=data_formatted&lines=2",
                   postCodeHolder);
+            
 
             //Complete XML HTTP Request
             WebRequest request = WebRequest.Create(url);
@@ -156,28 +149,26 @@ namespace PostCodeLookup
             //Declare and set a stream reader to read the returned XML
             StreamReader reader = new StreamReader(response.GetResponseStream());
 
-            //Declare and set XML document, loading in the XML from the stream reader.
-            XmlDocument xmlDoc = new XmlDocument();
-            xmlDoc.LoadXml(reader.ReadToEnd());
-            //Declare and set an xmlnode list to hold the address details.
-            XmlNodeList xmlNodeList = xmlDoc.SelectNodes("/CraftyResponse/address_data_formatted/delivery_point");
-            //Attempt to set the node list to the address details node (thoroughfare).
-
-            if (xmlNodeList.Count > 0)
+            // Get the requests json object and convert it to in memory dynamic
+            // Note: that you are able to convert to a specific object if required.
+           var jsonResponseObject = JsonConvert.DeserializeObject<dynamic>(reader.ReadToEnd());
+            
+            // check that there are delivery points
+            if (jsonResponseObject.delivery_point_count > 0)
             {
+            
                 //If the node list contains address nodes then move on.
                 int i = 0;
-                foreach (System.Xml.XmlNode node in xmlNodeList)
+                foreach (var node in jsonResponseObject.delivery_points)
                 {
                     ClsAddress address = new ClsAddress()
                     {
                         AddressID = i,
-                        AddressLine1 = node.ChildNodes[2].InnerText,
-                        AddressLine2 = node.ChildNodes[3].InnerText,
-                        County =
-                            xmlDoc.SelectSingleNode("CraftyResponse/address_data_formatted/postal_county").InnerText,
-                        PostCode = xmlDoc.SelectSingleNode("CraftyResponse/address_data_formatted/postcode").InnerText,
-                        Town = xmlDoc.SelectSingleNode("/CraftyResponse/address_data_formatted/town").InnerText
+                        AddressLine1 = node.line_1,
+                        AddressLine2 = node.line_2,
+                        County = jsonResponseObject.postal_county,
+                        PostCode = jsonResponseObject.postcode,
+                        Town = jsonResponseObject.town
                     };
 
                     addressList.Add(address);
@@ -185,19 +176,15 @@ namespace PostCodeLookup
                 }
 
                 this.LoadAddressListIntoDropDown();
-
             }
             else
             {
                 //If no node details, there will be an error message. 
 
-                xmlNodeList = xmlDoc.SelectNodes("/CraftyResponse"); //Populate the nodelist with the error info
-
-                foreach (System.Xml.XmlNode node in xmlNodeList)
+                foreach (var node in jsonResponseObject)
                 {
                     // Get the details of the error message and return it the user.
-
-                    switch (node.ChildNodes[0].InnerText)
+                    switch ((string)node.Value)
                     {
                         case "0001":
                             MessageBox.Show("Post Code not found");
@@ -224,7 +211,7 @@ namespace PostCodeLookup
                             MessageBox.Show("Internal server error");
                             break;
                         default:
-                            MessageBox.Show("Unknown Error");
+                            MessageBox.Show((string)node.Value);
                             break;
                     }
                 }
